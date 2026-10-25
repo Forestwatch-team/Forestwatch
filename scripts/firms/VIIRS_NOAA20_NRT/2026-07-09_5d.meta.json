@@ -1,0 +1,13 @@
+{
+  "provider": "NASA FIRMS",
+  "source": "VIIRS_NOAA20_NRT",
+  "window_start": "2026-07-09",
+  "day_range": 5,
+  "bbox": [
+    112.0,
+    -44.0,
+    154.0,
+    -10.0
+  ],
+  "retrieved_at_utc": "2026-10-17T19:11:33.770740+00:00"
+}

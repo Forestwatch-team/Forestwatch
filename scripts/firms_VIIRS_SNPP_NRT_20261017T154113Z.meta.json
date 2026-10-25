@@ -1,0 +1,14 @@
+{
+  "provider": "NASA FIRMS",
+  "source": "VIIRS_SNPP_NRT",
+  "url_without_key": "https://firms.modaps.eosdis.nasa.gov/api/area/csv/***KEY***/VIIRS_SNPP_NRT/112.0,-44.0,154.0,-10.0/5",
+  "bbox": [
+    112.0,
+    -44.0,
+    154.0,
+    -10.0
+  ],
+  "day_range": 5,
+  "retrieved_at_utc": "20261017T154113Z",
+  "rows": 11894
+}
