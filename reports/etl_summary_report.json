@@ -1,0 +1,32 @@
+{
+    "database_summary": {
+        "total_forest_loss_records": 27,
+        "total_fire_alerts_records": 11897
+    },
+    "ingestion_logs": [
+        {
+            "source_file": "fire_alerts.csv",
+            "records_processed": 3,
+            "records_failed": 0,
+            "status": "SUCCESS"
+        },
+        {
+            "source_file": "gfw_gadm__tcl__iso_change_AUS_20261017T170351Z.json",
+            "records_processed": 24,
+            "records_failed": 0,
+            "status": "SUCCESS"
+        },
+        {
+            "source_file": "firms_VIIRS_SNPP_NRT_20261017T154113Z.csv",
+            "records_processed": 11894,
+            "records_failed": 0,
+            "status": "SUCCESS"
+        },
+        {
+            "source_file": "forest_loss.csv",
+            "records_processed": 3,
+            "records_failed": 0,
+            "status": "SUCCESS"
+        }
+    ]
+}

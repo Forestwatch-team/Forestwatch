@@ -1,34 +1,35 @@
--- Drop tables if they exist to allow clean resets
-DROP TABLE IF EXISTS validation_logs CASCADE;
-DROP TABLE IF EXISTS fire_alerts CASCADE;
 DROP TABLE IF EXISTS forest_loss CASCADE;
+DROP TABLE IF EXISTS fire_alerts CASCADE;
+DROP TABLE IF EXISTS validation_logs CASCADE;
 
--- Table 1: Forest Loss Data
 CREATE TABLE forest_loss (
     id SERIAL PRIMARY KEY,
-    region VARCHAR(100) NOT NULL,
-    country VARCHAR(100) NOT NULL,
-    year INT NOT NULL CHECK (year >= 2000 AND year <= 2100),
-    area_ha NUMERIC(12, 2) NOT NULL CHECK (area_ha >= 0),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    region VARCHAR(255),
+    country VARCHAR(255),
+    year INT,
+    area_ha NUMERIC(12, 2),
+    CONSTRAINT unique_forest_loss UNIQUE (region, country, year)
 );
 
--- Table 2: Real-time Fire Alerts
 CREATE TABLE fire_alerts (
     id SERIAL PRIMARY KEY,
-    latitude NUMERIC(9, 6) NOT NULL,
-    longitude NUMERIC(9, 6) NOT NULL,
-    confidence NUMERIC(5, 2) CHECK (confidence BETWEEN 0 AND 100),
-    alert_date DATE NOT NULL,
+    latitude NUMERIC(10, 6),
+    longitude NUMERIC(10, 6),
+    confidence NUMERIC(5, 2),
+    alert_date DATE,
+    CONSTRAINT unique_fire_alert UNIQUE (latitude, longitude, alert_date)
+);
+
+CREATE TABLE validation_logs (
+    id SERIAL PRIMARY KEY,
+    source_file VARCHAR(255),
+    records_processed INT,
+    records_failed INT,
+    status VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Table 3: ETL Data Validation Logs
-CREATE TABLE validation_logs (
-    id SERIAL PRIMARY KEY,
-    source_file VARCHAR(255) NOT NULL,
-    records_processed INT NOT NULL,
-    records_failed INT NOT NULL,
-    status VARCHAR(50) NOT NULL,
-    log_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+-- Optimization Indexes
+CREATE INDEX IF NOT EXISTS idx_fire_alerts_date ON fire_alerts(alert_date);
+CREATE INDEX IF NOT EXISTS idx_fire_alerts_location ON fire_alerts(latitude, longitude);
+CREATE INDEX IF NOT EXISTS idx_forest_loss_country_year ON forest_loss(country, year);
