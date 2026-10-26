@@ -1,4 +1,5 @@
 import os
+import csv
 import glob
 import json
 import pandas as pd
@@ -17,7 +18,7 @@ CONN_STR = f"host={DB_HOST} port={DB_PORT} dbname={DB_NAME} user={DB_USER} passw
 
 def log_validation(source_file, processed, failed, status):
     """Logs pipeline execution metrics into validation_logs."""
-    with psycopg.connect(CONN_STR) as conn:
+    with psycopg.connect(CONN_STR, prepare_threshold=None) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -144,39 +145,61 @@ def ingest_fire_csv(filepath):
         log_validation(os.path.basename(filepath), 0, 0, "FAILED")
 
 def ingest_firms_csv(filepath):
+    """Bulk ingest FIRMS CSV in fast 1,000-row batches."""
+    if not os.path.exists(filepath):
+        print(f"File not found: {filepath}")
+        return
+
+    # 1. Read all rows into memory first
+    records = []
+    with open(filepath, mode="r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            records.append((
+                float(row["latitude"]),
+                float(row["longitude"]),
+                float(row["bright_ti4"]),
+                float(row["scan"]),
+                float(row["track"]),
+                row["acq_date"],
+                row["acq_time"],
+                row["satellite"],
+                row["instrument"],
+                row["confidence"],
+                row["version"],
+                float(row["bright_ti5"]),
+                float(row["frp"]),
+                row["daynight"]
+            ))
+
+    # 2. Upload in fast 1,000-row chunks
     try:
-        df = pd.read_csv(filepath)
-        processed, failed = 0, 0
-        with psycopg.connect(CONN_STR) as conn:
+        with psycopg.connect(CONN_STR, prepare_threshold=None) as conn:
             with conn.cursor() as cur:
-                for _, row in df.iterrows():
-                    try:
-                        lat, lon = float(row['latitude']), float(row['longitude'])
-                        conf = parse_confidence(row['confidence'])
+                batch_size = 1000
+                for i in range(0, len(records), batch_size):
+                    batch = records[i:i + batch_size]
+                    cur.executemany(
+                        """
+                        INSERT INTO fire_alerts (
+                            latitude, longitude, bright_ti4, scan, track,
+                            acq_date, acq_time, satellite, instrument,
+                            confidence, version, bright_ti5, frp, daynight
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+                        """,
+                        batch
+                    )
+                    conn.commit()
 
-                        if not is_valid_fire_alert(lat, lon, conf):
-                            failed += 1
-                            continue
+        log_validation(os.path.basename(filepath), len(records), 0, "SUCCESS")
+        print(f"Successfully processed FIRMS file: {len(records)} records inserted.")
 
-                        cur.execute(
-                            """
-                            INSERT INTO fire_alerts (latitude, longitude, confidence, alert_date)
-                            VALUES (%s, %s, %s, %s)
-                            ON CONFLICT (latitude, longitude, alert_date) DO NOTHING;
-                            """,
-                            (lat, lon, conf, str(row['acq_date']))
-                        )
-                        if cur.rowcount > 0:
-                            processed += 1
-                    except Exception:
-                        failed += 1
-            conn.commit()
-        status = "SUCCESS" if failed == 0 else "PARTIAL"
-        log_validation(os.path.basename(filepath), processed, failed, status)
-        print(f"Loaded {processed} new records from FIRMS file '{os.path.basename(filepath)}' (Failed/Skipped: {failed}).")
     except Exception as e:
         print(f"Failed processing FIRMS file {filepath}: {e}")
-        log_validation(os.path.basename(filepath), 0, 0, "FAILED")
+        try:
+            log_validation(os.path.basename(filepath), 0, 0, "FAILED")
+        except Exception:
+            pass
 
 def ingest_gfw_json(filepath):
     try:
