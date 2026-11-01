@@ -2,17 +2,22 @@ import os
 import psycopg
 from dotenv import load_dotenv
 
-# Load credentials from .env
-load_dotenv()
+# Find the absolute path to the root folder where .env is located
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+dotenv_path = os.path.join(BASE_DIR, '.env')
 
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = os.getenv("DB_PORT", "5432")
-DB_NAME = os.getenv("DB_NAME", "forestwatch")
-DB_USER = os.getenv("DB_USER", "postgres")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "forestwatchadmin3@@@")
+# Load credentials from .env safely using the absolute path
+load_dotenv(dotenv_path=dotenv_path)
+
+DB_HOST = os.getenv("DB_HOST")
+DB_PORT = os.getenv("DB_PORT", "6543")  # Defaults to 6543 if not specified
+DB_NAME = os.getenv("DB_NAME")
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
 
 def init_db():
-    schema_path = os.path.join("sql", "schema.sql")
+    # Make sure schema_path is absolute so it doesn't break from subfolders
+    schema_path = os.path.join(BASE_DIR, "sql", "schema.sql")
     if not os.path.exists(schema_path):
         print(f"Error: {schema_path} not found. Please create sql/schema.sql first.")
         return
