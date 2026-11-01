@@ -1,75 +1,141 @@
-import streamlit as st
+"""ForestWatch dashboard. Run: python -m streamlit run app.py"""
+from datetime import date, timedelta
+
 import pandas as pd
-import numpy as np
+import streamlit as st
 
-st.set_page_config(page_title="ForestWatch Dashboard", layout="wide")
+from src.database import queries
+from src.database.db import DatabaseUnavailable
+from src.visualization import charts
 
-# Sidebar indicating mode as per manual instructions
-st.sidebar.title("🌲 Navigation")
-st.sidebar.markdown("**STATUS:** SYNTHETIC stub data active")
+st.set_page_config(page_title="ForestWatch", layout="wide", page_icon="🌲")
 
-# Sidebar Filters
-st.sidebar.subheader("Global Filters")
-year_filter = st.sidebar.slider("Select Analysis Year", 2020, 2026, 2024)
-region_filter = st.sidebar.selectbox("Select Country/Region", ["All", "Australia", "Brazil", "Indonesia"])
 
-# Tab names explicitly requested by manual
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "Overview",
-    "Fire activity",
-    "Forest loss",
-    "Data quality",
-    "Methodology and limits"
-])
+@st.cache_data(ttl=600, show_spinner="Connecting to the database...")
+def load_meta():
+    return queries.load_meta_bundle()
 
-with tab1:
-    st.header("Project Overview")
-    st.write("Welcome to the ForestWatch system dashboard.")
-    st.metric("System Health", "98.4%")
-    
-    sample_df = pd.DataFrame({
-        "Region": ["Australia", "Brazil", "Indonesia"],
-        "Metric Type": ["Fire Alert", "Forest Canopy Loss", "Fire Alert"],
-        "Severity": ["High", "Medium", "High"]
-    })
-    st.dataframe(sample_df, use_container_width=True)
-    st.caption("Figure 1.1: Live-streamed data ingestion events across monitored regions.")
 
-with tab2:
-    st.header("FIRMS Active Fire Telemetry & Spatial Trends")
-    st.write("Visualizing thermal anomalies detected via satellite instruments.")
-    
-    chart_data = pd.DataFrame(
-        np.random.randn(20, 3),
-        columns=['VIIRS SNPP', 'MODIS Terra', 'MODIS Aqua']
-    )
-    st.line_chart(chart_data)
-    st.caption("Figure 2.1: Temporal distribution of localized high-confidence thermal anomalies.")
+@st.cache_data(ttl=600, show_spinner="Loading daily counts...")
+def load_daily(start, end, classes):
+    return queries.fire_daily_counts(start, end, classes)
 
-with tab3:
-    st.header("GFW Tree Cover & Canopy Disturbance Metrics")
-    
-    bar_data = pd.DataFrame({
-        'Year': [2020, 2021, 2022, 2023, 2024, 2025],
-        'Loss Area (Ha)': [34000, 41000, 39000, 45210, 48000, 51000]
-    }).set_index('Year')
-    st.bar_chart(bar_data)
-    st.caption("Figure 3.1: Comparative breakdown of aggregated annual canopy loss.")
 
-with tab4:
-    st.header("Data Quality and Pipeline Validation")
-    
-    quality_df = pd.DataFrame({
-        "Data Source": ["FIRMS_VIIRS", "FIRMS_MODIS", "GFW_Loss"],
-        "Pipeline Status": ["SUCCESS", "SUCCESS", "PARTIAL"]
-    })
-    st.table(quality_df)
-    st.caption("Figure 4.1: Database validation metrics checking ingest reliability.")
+@st.cache_data(ttl=600, show_spinner="Loading map points...")
+def load_points(start, end, classes):
+    return queries.fire_points(start, end, classes)
 
-with tab5:
-    st.header("Data Models, Architecture Contracts & Constraints")
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_loss(country):
+    return queries.loss_by_year(country)
+
+
+st.title("🌲 ForestWatch: Forest Loss and Fire Activity")
+st.caption("Satellite-derived public data (NASA FIRMS and Global Forest Watch). "
+           "For learning and awareness, not an official report.")
+
+try:
+    meta = load_meta()
+except (DatabaseUnavailable, RuntimeError) as exc:
+    st.error("The database is not reachable. Check DATABASE_URL and your internet connection.")
+    st.caption(f"Details: {exc}")
+    st.stop()
+except Exception as exc:
+    st.error("Could not read data. Are the tables created and loaded?")
+    st.caption(f"Details: {exc}")
+    st.stop()
+
+# ---------------- Sidebar filters ----------------
+st.sidebar.header("Filters")
+rng = meta["range"]
+has_fire = (not rng.empty) and pd.notna(rng.loc[0, "min_day"])
+if has_fire:
+    min_day = pd.to_datetime(rng.loc[0, "min_day"]).date()
+    max_day = pd.to_datetime(rng.loc[0, "max_day"]).date()
+else:
+    min_day = max_day = date.today()
+
+default_start = max(min_day, max_day - timedelta(days=90))
+dates = st.sidebar.date_input("Date range (UTC)", value=(default_start, max_day),
+                              min_value=min_day, max_value=max_day)
+start, end = dates if isinstance(dates, tuple) and len(dates) == 2 else (default_start, max_day)
+
+class_options = list(meta["classes"]["confidence"]) if not meta["classes"].empty else []
+chosen_classes = st.sidebar.multiselect(
+    "Confidence", class_options, default=class_options,
+    format_func=lambda c: {"l": "low", "n": "nominal", "h": "high"}.get(c, c))
+st.sidebar.caption("Rows with missing confidence are always included.")
+
+tab_over, tab_fire, tab_loss, tab_quality, tab_method = st.tabs(
+    ["Overview", "Fire activity", "Forest loss", "Data quality", "Methodology and limits"])
+
+# ---------------- Overview ----------------
+with tab_over:
+    counts = (meta["counts"].set_index("table_name")["row_count"]
+              if not meta["counts"].empty else pd.Series(dtype=int))
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Stored fire detections", f"{int(counts.get('fire_alerts', 0)):,}")
+    c2.metric("Forest loss records", f"{int(counts.get('forest_loss', 0)):,}")
+    c3.metric("Validation runs", f"{int(counts.get('validation_logs', 0)):,}")
+    if meta["quality"].empty:
+        st.info("No validation runs recorded yet.")
+    else:
+        st.subheader("Latest validation run")
+        st.dataframe(meta["quality"].head(1), hide_index=True)
+
+# ---------------- Fire activity ----------------
+with tab_fire:
+    if not has_fire:
+        st.info("No fire data stored yet.")
+    elif class_options and not chosen_classes:
+        st.warning("Select at least one confidence level.")
+    else:
+        daily = load_daily(start, end, chosen_classes)
+        total = int(daily["detections"].sum()) if not daily.empty else 0
+        st.metric("Detections in selected range", f"{total:,}")
+        st.plotly_chart(charts.fire_timeseries(daily))
+        points = load_points(start, end, chosen_classes)
+        st.plotly_chart(charts.fire_map(points))
+        st.caption("Each dot is one satellite detection (a hot pixel), not a confirmed fire "
+                   "and not a burned area. The map shows at most 20,000 of the most recent "
+                   "detections. Times are UTC.")
+
+# ---------------- Forest loss ----------------
+with tab_loss:
+    countries = meta["countries"]
+    if countries.empty:
+        st.info("No forest loss data stored yet.")
+    else:
+        names = list(countries["country"])
+        idx = names.index("Australia") if "Australia" in names else 0
+        country = st.selectbox("Country", names, index=idx)
+        loss = load_loss(country)
+        st.plotly_chart(charts.loss_bar(loss))
+        st.caption("Tree cover loss is not the same as deforestation: it includes harvest and "
+                   "fire-related loss. Methods changed in 2011, so compare earlier and later "
+                   "years with caution.")
+
+# ---------------- Data quality ----------------
+with tab_quality:
+    q = meta["quality"]
+    if q.empty:
+        st.info("No validation runs recorded yet.")
+    else:
+        st.dataframe(q, hide_index=True)
+        st.caption("Failed records are counted in the validation log; they are not silently ignored.")
+
+# ---------------- Methodology ----------------
+with tab_method:
     st.markdown("""
-    * **Methodology Limitations:** A dot on the map represents a hot-pixel detection, *not* a confirmed physical fire. 
-    * **Tree Cover vs Deforestation:** Tree cover loss includes natural harvesting and disease, which is not strictly equivalent to permanent deforestation.
-    """)
-    st.caption("Figure 5.1: Functional layout definitions and metadata integrity constraints.")
+**Sources.** NASA FIRMS active fire detections and Global Forest Watch tree cover loss
+(University of Maryland / Hansen et al.). Please credit both providers.
+
+**What the data is.** Fire detections are satellite thermal anomalies. One fire can produce many
+detections, and a detection does not prove a wildfire. Tree cover loss is annual canopy loss.
+
+**What it is not.** It is not burned area, fire risk, a prediction, or proof that fire caused forest loss.
+
+**Limits.** Clouds, smoke and overpass timing cause missed detections. Times are UTC.
+The fire table has no country column, so fire filters use date and confidence only.
+""")

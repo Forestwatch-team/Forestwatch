@@ -1,11 +1,18 @@
 import pytest
 
-def test_database_connection_timeout():
-    # Simulated check for database timeout/unavailability
-    connection_status = "TIMEOUT"
-    assert connection_status == "TIMEOUT"
+from src import config
+from src.database import db
 
-def test_pipeline_handles_db_failure():
-    # Simulated check that pipeline safely logs failure instead of crashing
-    pipeline_crash_status = False
-    assert pipeline_crash_status is False
+
+def test_unreachable_database_raises_friendly_error(monkeypatch):
+    monkeypatch.setattr(config, "DATABASE_URL", "postgresql://u:p@localhost:1/none")
+    with pytest.raises(db.DatabaseUnavailable):
+        with db.get_connection():
+            pass
+
+
+def test_missing_database_url_is_reported(monkeypatch):
+    monkeypatch.setattr(config, "DATABASE_URL", "")
+    with pytest.raises(RuntimeError):
+        with db.get_connection():
+            pass
