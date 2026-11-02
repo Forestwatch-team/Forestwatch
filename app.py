@@ -78,6 +78,9 @@ with tab_over:
     c1.metric("Stored fire detections", f"{int(counts.get('fire_alerts', 0)):,}")
     c2.metric("Forest loss records", f"{int(counts.get('forest_loss', 0)):,}")
     c3.metric("Validation runs", f"{int(counts.get('validation_logs', 0)):,}")
+    
+    st.caption("Fire detections with the same location, date and time are counted once.")
+    
     if meta["quality"].empty:
         st.info("No validation runs recorded yet.")
     else:

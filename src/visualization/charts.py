@@ -29,6 +29,8 @@ def fire_timeseries(daily):
 def fire_map(points):
     if _is_empty(points, ["latitude", "longitude"]):
         return empty_figure("No fire points for this selection")
+    labels = {"l": "low", "n": "nominal", "h": "high"}
+    points = points.assign(confidence=points["confidence"].map(labels).fillna(points["confidence"]))
     kwargs = dict(lat="latitude", lon="longitude", color="confidence", zoom=3, height=550)
     try:
         fig = px.scatter_map(points, map_style="open-street-map", **kwargs)

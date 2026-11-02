@@ -51,32 +51,34 @@ def fire_confidence_values() -> pd.DataFrame:
         ORDER BY confidence
     """)
 
-
 def fire_daily_counts(start, end, classes) -> pd.DataFrame:
     df = _df("""
         SELECT acq_date AS alert_date, COUNT(*) AS detections
-        FROM fire_alerts
-        WHERE acq_date BETWEEN %s AND %s
-          AND (confidence = ANY(%s) OR confidence IS NULL)
-        GROUP BY acq_date
-        ORDER BY acq_date
+        FROM (
+            SELECT DISTINCT latitude, longitude, acq_date, acq_time
+            FROM fire_alerts
+            WHERE acq_date BETWEEN %s AND %s
+              AND (confidence = ANY(%s) OR confidence IS NULL)
+        ) d
+        GROUP BY acq_date ORDER BY acq_date
     """, (start, end, list(classes)))
-
     df["alert_date"] = pd.to_datetime(df["alert_date"])
     return df
 
 
 def fire_points(start, end, classes, limit=20000) -> pd.DataFrame:
     return _df("""
-        SELECT latitude::float8 AS latitude,
-               longitude::float8 AS longitude,
-               confidence,
-               acq_date AS alert_date
-        FROM fire_alerts
-        WHERE acq_date BETWEEN %s AND %s
-          AND (confidence = ANY(%s) OR confidence IS NULL)
-        ORDER BY acq_date DESC
-        LIMIT %s
+        SELECT latitude::float8 AS latitude, longitude::float8 AS longitude,
+               confidence, acq_date AS alert_date
+        FROM (
+            SELECT DISTINCT ON (latitude, longitude, acq_date, acq_time)
+                   latitude, longitude, confidence, acq_date, acq_time
+            FROM fire_alerts
+            WHERE acq_date BETWEEN %s AND %s
+              AND (confidence = ANY(%s) OR confidence IS NULL)
+            ORDER BY latitude, longitude, acq_date, acq_time
+        ) d
+        ORDER BY acq_date DESC LIMIT %s
     """, (start, end, list(classes), limit))
 
 
@@ -113,7 +115,8 @@ def quality_summary() -> pd.DataFrame:
 
 def load_meta_bundle() -> dict:
     sqls = {
-        "counts": """SELECT 'fire_alerts' AS table_name, COUNT(*) AS row_count FROM fire_alerts
+        "counts": """SELECT 'fire_alerts' AS table_name, COUNT(*) AS row_count
+                     FROM (SELECT DISTINCT latitude, longitude, acq_date, acq_time FROM fire_alerts) d
                      UNION ALL SELECT 'forest_loss', COUNT(*) FROM forest_loss
                      UNION ALL SELECT 'validation_logs', COUNT(*) FROM validation_logs""",
         "range": "SELECT MIN(acq_date) AS min_day, MAX(acq_date) AS max_day FROM fire_alerts",
