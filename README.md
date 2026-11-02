@@ -14,7 +14,7 @@ This is a validated and deduplicated ETL data pipeline project designed to track
 ForestWatch is a modular, validated, and deduplicated environmental monitoring system designed to track active fire telemetry and canopy cover loss. It aggregates data from two primary public sources: NASA FIRMS (Fire Information for Resource Management System) and Global Forest Watch (GFW). Note: This is an analytical tool and not an official governmental reporting system.
 
 ## 2. Setup
-1. Clone the repository: `git clone https://github.com/mtalha-19/Forestwatch.git`
+1. Clone the repository: `git clone https://github.com/Forestwatch-team/Forestwatch.git`
 2. Install dependencies: `python -m pip install -r requirements.txt`
 3. Configure your local environment by creating a `.env` file referencing `.env.example`.
 
