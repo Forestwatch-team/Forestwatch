@@ -1,9 +1,0 @@
-{
-  "provider": "Global Forest Watch Data API",
-  "dataset": "gadm__tcl__iso_change",
-  "version": "latest",
-  "sql": "SELECT umd_tree_cover_loss__year AS year, SUM(umd_tree_cover_loss__ha) AS area_ha FROM data WHERE iso = 'AUS' AND umd_tree_cover_density_2000__threshold = 30 GROUP BY umd_tree_cover_loss__year ORDER BY umd_tree_cover_loss__year",
-  "region_code": "AUS",
-  "retrieved_at_utc": "20261017T195536Z",
-  "rows": 24
-}
