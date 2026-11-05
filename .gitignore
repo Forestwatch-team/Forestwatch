@@ -41,3 +41,4 @@ scripts/firms_*
 scripts/gfw_*
 ForestWatch_submission.zip
 "@ | Set-Content .gitignore -Encoding utf8
+~$*

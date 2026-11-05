@@ -38,10 +38,11 @@ ForestWatch is a modular, validated, and deduplicated environmental monitoring s
 - Tree cover loss accounts for all canopy disturbances including natural logging and disease, not strictly permanent deforestation.
 
 ## 7. Status Table
-| Component | Status |
-| :--- | :--- |
-| Setup & Environment | Completed |
-| Database Schema & Pipeline | Completed |
-| Dashboard UI & Visualization | Completed |
-| Testing Suite | Completed |
-| Deployment & Final Pack | In Progress |
+| Component                        | Status |
+| :---                             | :--- |
+| Setup & Environment              | Completed |
+| Database Schema & Pipeline       | Completed |
+| Dashboard UI & Visualization     | Completed |
+| Testing Suite                    | Completed |
+| Testing Report                   | Completed |
+| Deployment & Final Pack          | In Progress |
