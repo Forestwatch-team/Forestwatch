@@ -12,7 +12,8 @@ st.set_page_config(page_title="ForestWatch", layout="wide", page_icon="🌲")
 
 CSS = """
 <style>
-.block-container {padding-top: 1.2rem; max-width: 1250px;}
+.block-container {padding-top: 3.5rem; max-width: 1250px;}
+header[data-testid="stHeader"] {background: transparent;}
 #MainMenu, footer {visibility: hidden;}
 [data-testid="stToolbar"] {visibility: hidden;}
 .hero {background: linear-gradient(135deg, #064e3b 0%, #0f766e 55%, #115e59 100%);
@@ -27,6 +28,8 @@ CSS = """
        border-radius: 14px; padding: .9rem 1.1rem;}
 [data-testid="stMetricLabel"] {color: #94a3b8;}
 [data-testid="stMetricValue"] {color: #f8fafc; font-size: 1.8rem;}
+[data-testid="stMetricValue"] > div {overflow: visible !important;
+       text-overflow: clip !important; white-space: normal !important;}
 button[data-baseweb="tab"] {font-size: 1rem; padding: .6rem 1rem;}
 section[data-testid="stSidebar"] {border-right: 1px solid #1f2a44;}
 </style>
@@ -54,7 +57,9 @@ STATUS_ICON = {"SUCCESS": "✅", "PARTIAL": "⚠️", "FAILED": "❌"}
 def coverage_text(d1, d2):
     if d1.year == d2.year and d1.month == d2.month:
         return f"{d1.day}–{d2.day} {d2:%b %Y}"
-    return f"{d1:%d %b} – {d2:%d %b %Y}"
+    if d1.year == d2.year:
+        return f"{d1:%d %b} – {d2:%d %b %Y}"
+    return f"{d1:%d %b %Y} – {d2:%d %b %Y}"
 
 
 def hectares(x):
@@ -124,7 +129,7 @@ tab_over, tab_fire, tab_loss, tab_quality, tab_method = st.tabs(
 with tab_over:
     counts = (meta["counts"].set_index("table_name")["row_count"]
               if not meta["counts"].empty else pd.Series(dtype=int))
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4 = st.columns([1, 1.5, 1, 1])
     c1.metric("Stored fire detections", f"{int(counts.get('fire_alerts', 0)):,}")
     c2.metric("Fire data covers", coverage_text(min_day, max_day) if has_fire else "No data")
     c3.metric("Forest loss records", f"{int(counts.get('forest_loss', 0)):,}")
@@ -147,13 +152,15 @@ with tab_fire:
         daily = load_daily(start, end, chosen_classes)
         total = int(daily["detections"].sum()) if not daily.empty else 0
         m1, m2, m3 = st.columns(3)
-        m1.metric("Detections in selected range", f"{total:,}")
+        m1.metric("Detections in selected range", f"{total:,}",
+                  f"{start:%d %b} – {end:%d %b}", delta_color="off", delta_arrow="off")
         if not daily.empty:
             peak = daily.loc[daily["detections"].idxmax()]
             m2.metric("Busiest day", f"{peak['alert_date']:%d %b}",
                       f"{int(peak['detections']):,} detections",
                       delta_color="off", delta_arrow="off")
-            m3.metric("Daily average", f"{int(round(daily['detections'].mean())):,}")
+            m3.metric("Daily average", f"{int(round(daily['detections'].mean())):,}",
+                      "detections per day", delta_color="off", delta_arrow="off")
         with st.container(border=True):
             st.markdown("**Detections per day**")
             st.plotly_chart(charts.fire_timeseries(daily))
@@ -183,7 +190,9 @@ with tab_loss:
                       delta_color="off", delta_arrow="off")
             l2.metric("Latest year in data", f"{int(last['year'])}", hectares(last["area_ha"]),
                       delta_color="off", delta_arrow="off")
-            l3.metric("Total loss, all years in data", hectares(loss["area_ha"].sum()))
+            l3.metric("Total loss, all years in data", hectares(loss["area_ha"].sum()),
+                      f"{int(loss['year'].min())}–{int(loss['year'].max())}",
+                      delta_color="off", delta_arrow="off")
         with st.container(border=True):
             st.plotly_chart(charts.loss_bar(loss))
         st.caption("The highest year is shown in red. Tree cover loss is not the same as "
