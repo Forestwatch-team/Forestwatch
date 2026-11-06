@@ -68,6 +68,16 @@ def hectares(x):
     return f"{x / 1_000:,.0f} k ha"
 
 
+def last_loaded(q):
+    """Date of the latest successful data load, from the validation log."""
+    if q is None or q.empty or "created_at" not in q.columns:
+        return None
+    ok = q[q["status"].astype(str).str.upper() == "SUCCESS"]
+    src = ok if not ok.empty else q
+    ts = pd.to_datetime(src["created_at"]).max()
+    return None if pd.isna(ts) else ts
+
+
 @st.cache_data(ttl=600, show_spinner="Connecting to the database...")
 def load_meta():
     return queries.load_meta_bundle()
@@ -99,8 +109,12 @@ except Exception as exc:
     st.caption(f"Details: {exc}")
     st.stop()
 
+loaded = last_loaded(meta["quality"])
+loaded_text = f"{loaded.day} {loaded:%b %Y}" if loaded is not None else "not recorded"
+
 # ---------------- Sidebar filters ----------------
 st.sidebar.markdown("### 🌲 ForestWatch")
+st.sidebar.caption(f"Data last loaded: {loaded_text}")
 st.sidebar.header("Filters")
 rng = meta["range"]
 has_fire = (not rng.empty) and pd.notna(rng.loc[0, "min_day"])
@@ -134,7 +148,8 @@ with tab_over:
     c2.metric("Fire data covers", coverage_text(min_day, max_day) if has_fire else "No data")
     c3.metric("Forest loss records", f"{int(counts.get('forest_loss', 0)):,}")
     c4.metric("Validation runs", f"{int(counts.get('validation_logs', 0)):,}")
-    st.caption("Fire detections with the same location, date and time are counted once.")
+    st.caption(f"Data last loaded: {loaded_text}. "
+               "Fire detections with the same location, date and time are counted once.")
     with st.container(border=True):
         st.subheader("Latest validation run")
         if meta["quality"].empty:
